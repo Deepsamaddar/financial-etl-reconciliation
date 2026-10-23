@@ -62,6 +62,8 @@ def generate(rows: int, out_dir: Path, corrupt_rate: float = 0.03) -> Path:
     The bank feed mirrors the source but drops a handful of rows and nudges
     a few amounts by a penny, creating genuine breaks to reconcile.
     """
+    if rows < 0 or not 0 <= corrupt_rate <= 1:
+        raise ValueError("rows must be non-negative and corrupt_rate must be between 0 and 1")
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     rng = random.Random(settings.seed)
@@ -76,15 +78,18 @@ def generate(rows: int, out_dir: Path, corrupt_rate: float = 0.03) -> Path:
         bw.writeheader()
         for i in range(1, rows + 1):
             corrupt = rng.random() < corrupt_rate
-            r = _row(i, rng, corrupt)
+            # The independent bank feed retains valid identity and amount even
+            # when the source feed is deliberately damaged.
+            bank_row = _row(i, rng, False)
+            r = _row(i, rng, True) if corrupt else bank_row
             sw.writerow(r)
             # Bank feed: 1% of clean rows go missing, 1% shift by a penny.
             if not corrupt and rng.random() < 0.01:
                 continue
-            amt = r["amount"]
+            amt = bank_row["amount"]
             if isinstance(amt, float) and rng.random() < 0.01:
                 amt = round(amt + 0.01, 2)
-            bw.writerow({"txn_id": r["txn_id"], "amount": amt, "currency": r["currency"]})
+            bw.writerow({"txn_id": bank_row["txn_id"], "amount": amt, "currency": bank_row["currency"]})
     return src_path
 
 
