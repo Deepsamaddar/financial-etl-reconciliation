@@ -1,74 +1,62 @@
-# Architecture & Design Notes
+# Architecture and design decisions
 
-## Design goals
+## Processing contract
 
-1. **Scale to 10M+ rows on modest hardware.** The extract and load stages
-   stream the source in fixed-size chunks, so peak memory is bounded by the
-   chunk size, not the file size. This is the single most important property
-   for processing daily feeds cost-effectively.
-2. **Never silently lose data.** The data-quality gate quarantines bad rows
-   with a reason code instead of dropping them. Nothing disappears without a
-   trace, which is a hard requirement in a regulated context.
-3. **Prove correctness.** Reconciliation against an independent bank feed
-   turns "the ETL ran" into "the warehouse provably agrees with the source of
-   truth, and here are the exact breaks."
-4. **Run anywhere unchanged.** Environment-driven config and a SQLAlchemy
-   abstraction mean the same code targets SQLite (demo), PostgreSQL or MSSQL
-   (prod) and runs locally, in CI, or in Lambda.
+Source CSV → mapping/type coercion → quality gate → clean and quarantine tables
+→ current-run reconciliation → exception table. Each completed stage emits a
+local JSONL event keyed by run ID. The report renders the returned summary.
 
-## Data flow
+Required source headers come from `mapping/source_to_target.yaml`. Blank IDs
+are normalised to null. Amount minor units use decimal arithmetic with half-even
+rounding and a signed 64-bit bound. Invalid/nonfinite amounts are quarantined.
 
-Source files land in an S3 bucket. An `ObjectCreated` event invokes the
-Lambda handler, which pulls the files, runs the pipeline, and writes a run
-summary back to a curated prefix. The pipeline itself is a linear chain:
+## Duplicate policy
 
-```
-extract → transform → data-quality gate → load(clean|quarantine) → reconcile → load(breaks)
-```
+The first occurrence of an ID reserves it for the run, even if that row is
+quarantined for another reason. Later occurrences are quarantined. This avoids
+quietly choosing a replacement transaction. The same policy applies within a
+chunk and across chunks. A run-local set tracks observed IDs; it does not inspect
+previous runs in the warehouse. Replay-safe loading remains future work.
 
-Each stage emits an audit event, so a run can be reconstructed end to end
-from `data/audit/<run_id>.jsonl`.
+The bank feed must have unique, nonblank IDs and finite amounts. Reconciliation
+fails clearly when that contract is violated; the merge also enforces one-to-one
+cardinality. Operators must correct the feed before retrying.
 
-## Source-to-target mapping
+## Monetary comparisons
 
-The mapping lives in `mapping/source_to_target.yaml` rather than in code. It
-drives both the transform (renames, kept columns) and the data-quality checks
-(not-null, domain, key). Keeping schema and quality in one declarative file
-prevents the two drifting apart, and means a schema change is a data edit, not
-a code change.
+`Decimal(str(value))` avoids binary floating-point errors at tolerance boundaries.
+The comparison uses the exact supplied decimal amount; report and SQL values are
+converted to float only after classification. Minor units are a separate rounded
+warehouse field. This supports the demo’s two-decimal currencies, not arbitrary
+currency precision or FX conversion. Currency equality is assumed, not checked.
 
-## Data-quality rules
+## Resource and storage limits
 
-| Rule | Trigger | Reason code |
-|---|---|---|
-| Not null | key/foreign-key column missing | `null_<col>` |
-| Numeric | amount not parseable | `amount_not_numeric` |
-| Timestamp | `posted_at` not parseable | `bad_timestamp` |
-| Domain | value outside allowed set | `invalid_<col>` |
-| Uniqueness | duplicate business key | `duplicate_<col>` |
+Extraction and writes are chunked, but reconciliation concatenates the accepted
+ledger and reads the whole bank feed. Both this merge and the ID set grow with
+input size. There is no verified constant-memory or 10M-row claim. A production
+version should use indexed database staging, run-scoped keys, database-side
+anti-joins, and measured memory/time budgets.
 
-The first failing rule wins, so each quarantined row carries exactly one
-deterministic reason — important for building trustworthy exception reports.
+`--reset` recreates tables even for empty outputs, preventing stale data. Pandas
+replacement can discard database constraints, so it belongs to a disposable demo
+warehouse. Append mode is not idempotent. There is no atomic transaction around
+the full run; a late failure may leave partially loaded tables. Reconciliation
+covers the current source batch, not all historical rows in the target.
 
-## Reconciliation model
+## AWS and database scope
 
-Two feeds are joined on `transaction_id` with an outer join and an indicator:
+S3/Lambda is a moto-backed integration example. Production deployment needs a
+writable runtime data directory, event decoding/filtering, feed-readiness checks,
+least-privilege access, durable state, retries, deduplication, and concurrency
+controls. The current handler resets its target and is not deployment-ready.
+PostgreSQL and MSSQL scripts are reference assets; the verified local path is
+SQLite. pandas stages do not run unchanged as distributed Spark operations.
 
-* `both` + `|Δ| ≤ tolerance` → **matched**
-* `both` + `|Δ| > tolerance` → **amount_break**
-* `left_only` → **missing_bank** (in ledger, not in bank)
-* `right_only` → **missing_ledger** (in bank, not in ledger)
+## Next engineering milestones
 
-The tolerance defaults to £0.01 to absorb rounding while still catching real
-breaks.
-
-## Deployment notes
-
-* **Warehouse:** apply `sql/postgres/schema.sql` or `sql/mssql/schema.sql`,
-  then set `ETL_TARGET_DSN`.
-* **Lambda:** package `src/` with `requirements.txt`, set the S3 trigger on the
-  landing bucket, and grant `s3:GetObject`/`s3:PutObject` on the relevant
-  prefixes.
-* **Scale-out:** for feeds beyond a single Lambda's limits, the same stage
-  functions drop into a Glue/Spark job unchanged because they operate on
-  DataFrames, not on a specific runtime.
+1. Add run-scoped staging and transactional promotion with replay-safe keys.
+2. Reconcile currency as well as identity and amount; quarantine invalid bank rows.
+3. Move joins and deduplication into an indexed database and benchmark at scale.
+4. Add database-backed integration tests and a safe, packaged Lambda deployment.
+5. Add immutable audit storage and operational failure/recovery reporting.
