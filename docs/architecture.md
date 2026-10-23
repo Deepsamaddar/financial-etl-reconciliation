@@ -25,7 +25,9 @@ cardinality. Operators must correct the feed before retrying.
 ## Monetary comparisons
 
 `Decimal(str(value))` avoids binary floating-point errors at tolerance boundaries.
-The comparison uses the exact supplied decimal amount; report and SQL values are
+The pipeline preserves source amount text until reconciliation, including amounts
+large enough to lose cents in binary floats. The comparison uses the exact supplied
+decimal amount; report and SQL values are
 converted to float only after classification. Minor units are a separate rounded
 warehouse field. This supports the demo’s two-decimal currencies, not arbitrary
 currency precision or FX conversion. Currency equality is assumed, not checked.
