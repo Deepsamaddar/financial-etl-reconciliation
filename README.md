@@ -1,12 +1,14 @@
-# Financial ETL & Reconciliation — Portfolio Edition
+# Financial ETL & Reconciliation
+
+**Deep Samaddar · Data Engineering Portfolio**
 
 A runnable Python project for learning and demonstrating transaction ingestion,
 data-quality controls, ledger-to-bank reconciliation, and automated testing.
 All demo data is synthetic. The default warehouse is local SQLite; AWS tests use
 mocked S3, so no cloud account is needed.
 
-This is Deep Samaddar’s portfolio fork of
-[Vinith Kumar G P’s original project](https://github.com/Vinithvk98/financial-etl-reconciliation).
+Maintained by **Deep Samaddar**, this portfolio project extends an
+[MIT-licensed open-source baseline](https://github.com/Vinithvk98/financial-etl-reconciliation).
 The original MIT license and copyright are preserved. This edition adds
 reliability fixes, regression coverage, a reproducible report, and explicit
 operational limitations. See [the contribution guide](docs/portfolio.md).
@@ -80,7 +82,8 @@ validated at 10 million rows.**
 | `missing_bank` | Accepted ledger ID absent from bank |
 | `missing_ledger` | Bank ID absent from accepted ledger, including quarantined source IDs |
 
-Tolerance defaults to 0.01. Decisions use `Decimal`; exported SQL/report amount
+Tolerance defaults to 0.01. Source amount text is preserved through the pipeline
+until `Decimal` comparison; exported SQL/report amount
 columns use floating-point values for compatibility. IDs are globally unique,
 and currencies must already agree for each ID; FX and currency mismatch handling
 are not implemented. Bank IDs are loaded as text to preserve leading zeros.
@@ -129,4 +132,4 @@ docs/            architecture, contribution guide, validation evidence
 
 ## License
 
-MIT. Original copyright: Vinith Kumar G P (2026); see [LICENSE](LICENSE).
+MIT. Required third-party copyright and license notices are retained in [LICENSE](LICENSE).
