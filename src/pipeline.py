@@ -47,8 +47,9 @@ def run(source_dir: str | Path, reset: bool = False,
         dq = data_quality.run_checks(tf, mapping, seen_keys)
         load.load_curated(dq.clean, engine, if_exists if i == 0 else "append")
         load.load_quarantine(dq.quarantine, engine, if_exists if i == 0 else "append")
-        curated_frames.append(dq.clean[["transaction_id", "amount"]].assign(
-            amount=pd.to_numeric(dq.clean["amount"], errors="coerce")))
+        # Preserve source decimal text until reconciliation; float coercion here
+        # would erase cents on large amounts before Decimal ever sees them.
+        curated_frames.append(dq.clean[["transaction_id", "amount"]].copy())
         rows_in += dq.total
         rows_clean += len(dq.clean)
         rows_quarantined += len(dq.quarantine)
