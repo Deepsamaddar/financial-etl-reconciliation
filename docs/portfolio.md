@@ -1,4 +1,4 @@
-# Portfolio contribution and interview guide
+# Deep Samaddar — Project contribution and interview guide
 
 ## How to describe this project
 
