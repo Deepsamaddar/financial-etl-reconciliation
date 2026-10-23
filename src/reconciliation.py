@@ -14,6 +14,7 @@ surfaced without drowning in noise.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 
 import pandas as pd
 
@@ -42,26 +43,49 @@ class ReconResult:
 
 def reconcile(ledger: pd.DataFrame, bank: pd.DataFrame,
               tolerance: float | None = None) -> ReconResult:
-    tol = settings.reconciliation_tolerance if tolerance is None else tolerance
+    tol = Decimal(str(settings.reconciliation_tolerance if tolerance is None else tolerance))
+    if not tol.is_finite() or tol < 0:
+        raise ValueError("tolerance must be finite and non-negative")
 
-    led = ledger[["transaction_id", "amount"]].rename(columns={"amount": "amount_ledger"})
-    led["amount_ledger"] = pd.to_numeric(led["amount_ledger"], errors="coerce")
+    def prepare(frame, key, side):
+        required = {key, "amount"}
+        if not required.issubset(frame.columns):
+            raise ValueError(f"{side}: missing required columns {sorted(required - set(frame.columns))}")
+        out = frame[[key, "amount"]].copy().rename(columns={key: "transaction_id"})
+        ids = out["transaction_id"].astype("string").str.strip()
+        if ids.isna().any() or ids.eq("").any() or ids.duplicated().any():
+            raise ValueError(f"{side}: transaction IDs must be present and unique")
+        out["transaction_id"] = ids
+        def money(value):
+            try:
+                number = Decimal(str(value))
+            except (InvalidOperation, ValueError):
+                raise ValueError(f"{side}: amounts must be finite numbers") from None
+            if not number.is_finite():
+                raise ValueError(f"{side}: amounts must be finite numbers")
+            return number
+        out[f"amount_{side}"] = out.pop("amount").map(money)
+        return out
 
-    bnk = bank[["txn_id", "amount"]].rename(
-        columns={"txn_id": "transaction_id", "amount": "amount_bank"}
-    )
-    bnk["amount_bank"] = pd.to_numeric(bnk["amount_bank"], errors="coerce")
+    led = prepare(ledger, "transaction_id", "ledger")
+    bnk = prepare(bank, "txn_id", "bank")
+    merged = led.merge(bnk, on="transaction_id", how="outer", indicator=True,
+                       validate="one_to_one")
+    merged["delta"] = [abs(a - b) if flag == "both" else None
+                       for a, b, flag in zip(merged["amount_ledger"],
+                                             merged["amount_bank"], merged["_merge"])]
 
-    merged = led.merge(bnk, on="transaction_id", how="outer", indicator=True)
-    merged["delta"] = (merged["amount_ledger"] - merged["amount_bank"]).abs()
-
-    missing_bank = merged[merged["_merge"] == "left_only"]
-    missing_ledger = merged[merged["_merge"] == "right_only"]
+    missing_bank = merged[merged["_merge"] == "left_only"].copy()
+    missing_ledger = merged[merged["_merge"] == "right_only"].copy()
     both = merged[merged["_merge"] == "both"]
 
-    matched = both[both["delta"] <= tol]
-    amount_break = both[both["delta"] > tol]
+    matched = both[both["delta"] <= tol].copy()
+    amount_break = both[both["delta"] > tol].copy()
 
+    # SQL/report values use floats; classification above uses exact decimal arithmetic.
+    for frame in (matched, amount_break, missing_bank, missing_ledger):
+        for column in ("amount_ledger", "amount_bank", "delta"):
+            frame[column] = frame[column].map(lambda x: float(x) if pd.notna(x) else None)
     cols = ["transaction_id", "amount_ledger", "amount_bank", "delta"]
     return ReconResult(
         matched=matched[cols].reset_index(drop=True),
