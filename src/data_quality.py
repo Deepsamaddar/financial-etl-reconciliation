@@ -42,7 +42,8 @@ class DQResult:
         }
 
 
-def run_checks(df: pd.DataFrame, mapping: dict | None = None) -> DQResult:
+def run_checks(df: pd.DataFrame, mapping: dict | None = None,
+               seen_keys: set | None = None) -> DQResult:
     mapping = mapping or load_mapping()
     df = df.copy()
     reason = pd.Series(pd.NA, index=df.index, dtype="object")
@@ -75,7 +76,10 @@ def run_checks(df: pd.DataFrame, mapping: dict | None = None) -> DQResult:
     # uniqueness on the business key
     key = next((c["target"] for c in mapping["columns"] if c.get("key")), None)
     if key and key in df.columns:
-        flag(df[key].duplicated(keep="first"), f"duplicate_{key}")
+        flag(df[key].duplicated(keep="first") |
+             df[key].isin(seen_keys if seen_keys is not None else set()), f"duplicate_{key}")
+        if seen_keys is not None:
+            seen_keys.update(df[key].dropna().tolist())
 
     quarantine = df[reason.notna()].assign(dq_reason=reason[reason.notna()])
     clean = df[reason.isna()].drop(columns=[c for c in ["dq_reason"] if c in df.columns])
