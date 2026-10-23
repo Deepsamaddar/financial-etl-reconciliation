@@ -1,4 +1,4 @@
-# Validation evidence
+# Deep Samaddar — Validation evidence
 
 Validated locally on 23 October 2026 using Python 3.12.14, pandas 3.1.0,
 SQLAlchemy 2.1.6, and SQLite. Exact environment versions are recorded in
@@ -7,12 +7,13 @@ cross-version lockfile).
 
 ## Automated suite
 
-`python -m pytest -q -o addopts=''` → **34 passed**.
+`python -m pytest -q -o addopts=''` → **44 passed**.
 
 Coverage includes the inherited unit/mocked-S3 tests and added regression checks
 for penny thresholds, nonfinite bank amounts, invalid tolerances, duplicate joins,
 chunk-spanning duplicates, empty replacement, empty full runs, missing source
-headers, blank IDs, out-of-range amounts, decimal minor units, and report escaping.
+headers, blank IDs, out-of-range amounts, decimal minor units, report escaping, missing reconciliation keys, invalid chunk sizes, all-rejected
+source feeds, and large decimal amounts carried through the complete pipeline.
 
 ## Synthetic demo
 
@@ -44,3 +45,17 @@ valid. Runtime is not presented as a benchmark. The run-specific ID appears in
 Local tests verify SQLite and mocked AWS behaviour. Live AWS, PostgreSQL, MSSQL,
 concurrent events, restart recovery, and 10M-row performance were not validated.
 GitHub Actions results should be checked separately on this fork.
+
+## Follow-up cross-check
+
+The 50,000-row feed was rerun at chunk sizes 4,096, 7,000, and 50,000.
+All run summaries agreed after excluding the unique run ID. Database checks
+confirmed accepted-row totals, unique transaction IDs, quarantine totals, and
+stored exception counts.
+
+A new regression exposed premature float conversion in the pipeline for
+`900719925474099.95`. The identical ledger/bank amounts previously produced
+a false amount break. Preserving decimal text until reconciliation fixed it.
+
+The name shown on the README and generated report is Deep Samaddar. The original
+MIT license remains unchanged, and the source-baseline link is retained.
