@@ -1,0 +1,12 @@
+{
+  "run_id": "run-20261023-b4381064",
+  "rows_in": 50000,
+  "rows_clean": 48512,
+  "rows_quarantined": 1488,
+  "reconciliation": {
+    "matched": 48029,
+    "amount_break": 1,
+    "missing_bank": 482,
+    "missing_ledger": 1488
+  }
+}
