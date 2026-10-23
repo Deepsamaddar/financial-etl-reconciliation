@@ -11,6 +11,7 @@ columns:
     target: transaction_id
     type: string
     key: true
+    nullable: false
   - source: account_id
     target: account_id
     type: string
@@ -28,6 +29,7 @@ columns:
   - source: currency
     target: currency_code
     type: string
+    nullable: false
     domain: [GBP, USD, EUR, INR]
   - source: amount
     target: amount
