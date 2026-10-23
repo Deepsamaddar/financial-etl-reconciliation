@@ -1,0 +1,24 @@
+<!doctype html><html lang="en"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Financial ETL | Run report</title><style>
+*{box-sizing:border-box}body{margin:0;background:#101927;color:#edf3fa;font:16px/1.6 system-ui,sans-serif}
+main{max-width:1040px;margin:auto;padding:64px 28px}.tag{color:#7ee0bf;letter-spacing:.16em;font-size:12px;font-weight:700}
+h1{font-size:clamp(30px,5vw,48px);line-height:1.15;margin:16px 0}p{color:#abbcd0}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:32px 0}
+.card,.panel{background:#19263a;border:1px solid #30415a;border-radius:14px;padding:24px}
+.card span{display:block;color:#abbcd0}strong{display:block;font-size:36px;margin-top:6px}
+table{width:100%;border-collapse:collapse}td,th{padding:14px 0;text-align:left;border-bottom:1px solid #30415a}td:last-child,th:last-child{text-align:right}
+progress{width:100%;height:14px;accent-color:#7ee0bf}code{overflow-wrap:anywhere}footer{margin-top:32px;color:#abbcd0;font-size:13px}
+@media(max-width:600px){.cards{grid-template-columns:1fr}main{padding:30px 18px}}
+</style><main><div class="tag">PORTFOLIO DEMO / SYNTHETIC DATA</div>
+<h1>Financial ETL &amp;<br>reconciliation report</h1>
+<p>A reproducible view of data quality and ledger-to-bank exceptions.</p>
+<p>Run <code>run-20261023-b4381064</code></p><section class="cards"><div class="card"><span>Source records</span><strong>50,000</strong></div><div class="card"><span>Accepted</span><strong>48,512</strong></div><div class="card"><span>Quarantined</span><strong>1,488</strong></div></section>
+<section class="panel"><h2>Data quality</h2><p>97.02% of source records accepted</p>
+<progress value="97.024" max="100" aria-label="Accepted source records">97.02%</progress>
+<p>Control: source records = accepted + quarantined.</p></section><br>
+<section class="panel"><h2>Reconciliation outcomes</h2><table><thead><tr><th scope="col">Outcome</th><th scope="col">Records</th></tr></thead><tbody><tr><td>Matched</td><td>48,029</td></tr><tr><td>Amount differences</td><td>1</td></tr><tr><td>Missing from bank</td><td>482</td></tr><tr><td>Missing from ledger</td><td>1,488</td></tr></tbody></table>
+<p>Missing-from-ledger records can include source records rejected by the quality gate.
+Counts describe this run only; they are not production performance claims.</p></section>
+<footer>Local portfolio extension of Vinith Kumar G P’s MIT-licensed financial-etl-reconciliation project.
+No real customer or bank data. Reconciliation is in memory; the demo assumes unique IDs and consistent currencies per ID.</footer></main></html>
