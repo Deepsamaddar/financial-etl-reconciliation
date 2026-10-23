@@ -28,8 +28,6 @@ def get_engine(dsn: str | None = None) -> Engine:
 
 
 def _write(df: pd.DataFrame, table: str, engine: Engine, if_exists: str) -> int:
-    if df.empty:
-        return 0
     df.to_sql(table, engine, if_exists=if_exists, index=False)
     return len(df)
 
